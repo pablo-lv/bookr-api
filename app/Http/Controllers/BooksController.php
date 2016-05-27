@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Book;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
 
 /**
  * Class BooksController
@@ -25,7 +26,6 @@ class BooksController extends Controller
      * @param integer $id
      * @return mixed
      */
-
     public function show($id)
     {
         try {
@@ -38,4 +38,20 @@ class BooksController extends Controller
             ], 404);
         }
     }
+
+    /**
+     * POST /books
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+
+    public function store(Request $request)
+    {
+        $book = Book::create($request->all());
+
+        return response()->json(['created' => true], 201, [
+            'Location' => route('books.show', ['id' => $book->id])
+        ]);
+    }
+
 }
