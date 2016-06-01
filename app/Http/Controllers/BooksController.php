@@ -28,7 +28,7 @@ class BooksController extends Controller
      */
     public function show($id)
     {
-        try {
+        /*try {
             return Book::findOrFail($id);
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -36,7 +36,8 @@ class BooksController extends Controller
                     'message' => 'Book not found'
                 ]
             ], 404);
-        }
+        }*/
+        return Book::findOrFail($id);
     }
 
     /**
