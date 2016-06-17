@@ -2,12 +2,28 @@
 
 namespace Tests\App\Http\Controllers;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
 use TestCase;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 
 class BooksControllerTest extends TestCase
 {
     use DatabaseMigrations;
+
+    public function setUp()
+    {
+        parent::setUp();
+
+        Carbon::setTestNow(Carbon::now('UTC'));
+    }
+
+    public function tearDown()
+    {
+        parent::tearDown();
+
+        Carbon::setTestNow();
+    }
+
     /** @test **/
     public function index_status_code_should_be_200()
     {
@@ -20,25 +36,46 @@ class BooksControllerTest extends TestCase
         $books = factory('App\Book', 2)->create();
 
         $this->get('/books');
-        $expected = [
-            'data' => $books->toArray()
-        ];
 
-        $this->seeJsonEquals($expected);
+        $content = json_decode($this->response->getContent(), true);
+
+        $this->assertArrayHasKey('data', $content);
+
+        foreach ($books as $book)
+        {
+            $this->seeJson([
+                'id' => $book->id,
+                'title' => $book->title,
+                'description' => $book->description,
+                'author' => $book->author,
+                'created' => $book->created_at->toIso8601String(),
+                'updated' => $book->updated_at->toIso8601String(),
+            ]);
+        }
     }
 
     /** @test **/
     public function show_should_return_a_valid_book()
     {
         $book = factory('App\Book')->create();
-        $expected = [
-            'data' => $book->toArray()
-        ];
 
         $this
             ->get("/books/{$book->id}")
-            ->seeStatusCode(200)
-            ->seeJsonEquals($expected);
+            ->seeStatusCode(200);
+
+        //Get the response and assert the data key exists.
+        $content = json_decode($this->response->getContent(), true);
+
+        $this->assertArrayHasKey('data', $content);
+        $data = $content['data'];
+
+        // Assert the Book Properties match
+        $this->assertEquals($book->id, $data['id']);
+        $this->assertEquals($book->title, $data['title']);
+        $this->assertEquals($book->description, $data['description']);
+        $this->assertEquals($book->author, $data['author']);
+        $this->assertEquals($book->created_at->toIso8601String(), $data['created']);
+        $this->assertEquals($book->updated_at->toIso8601String(), $data['created']);
     }
 
     /** @test **/
@@ -69,23 +106,31 @@ class BooksControllerTest extends TestCase
     public function store_should_save_new_book_in_the_database()
     {
         $this->post('/books', [
-            'title' => 'The invisible Man',
-            'description' => 'An invisible man is trapped in the terror of his own reation',
+            'title' => 'The Invisible Man',
+            'description' => 'An invisible man is trapped in the terror of his own creation',
             'author' => 'H. G. Wells'
         ]);
 
         $body = json_decode($this->response->getContent(), true);
-
         $this->assertArrayHasKey('data', $body);
 
         $data = $body['data'];
-
-        $this->assertEquals('The invisible Man', $data['title']);
-        $this->assertEquals('An invisible man is trapped in the terror of his own reation', $data['description']);
+        $this->assertEquals('The Invisible Man', $data['title']);
+        $this->assertEquals(
+            'An invisible man is trapped in the terror of his own creation',
+            $data['description']
+        );
         $this->assertEquals('H. G. Wells', $data['author']);
-        $this->assertTrue($data['id'] > 0, 'Expected a positive integer, but did not see one');
-        $this->seeInDatabase('books', ['title' => 'The invisible Man']);
+        $this->assertTrue($data['id'] > 0, 'Expected a positive integer, but did not see one.');
+        
+        $this->assertArrayHasKey('created', $data);
+        $this->assertEquals(Carbon::now()->toIso8601String(), $data['created']);
+        $this->assertArrayHasKey('updated', $data);
+        $this->assertEquals(Carbon::now()->toIso8601String(), $data['updated']);
+
+        $this->seeInDatabase('books', ['title' => 'The Invisible Man']);
     }
+
 
     /** @test **/
     public function store_should_respond_with_a_201_and_location_header_when_successful()
@@ -107,8 +152,14 @@ class BooksControllerTest extends TestCase
     {
         $book = factory('App\Book')->create([
             'title' => 'War of the Worlds',
-            'description' => 'A science fiction masterpiece about Martians  invading London',
-            'author' => 'H. G. Wells'
+            'description' => 'A science fiction masterpiece about Martians invading London',
+            'author' => 'H. G. Wells',
+        ]);
+
+        $this->notSeeInDatabase('books', [
+            'title' => 'The War of the Worlds',
+            'description' => 'The book is way better than the movie.',
+            'author' => 'Wells, H. G.'
         ]);
 
         $this->put("/books/{$book->id}", [
@@ -124,15 +175,20 @@ class BooksControllerTest extends TestCase
                 'id' => 1,
                 'title' => 'The War of the Worlds',
                 'description' => 'The book is way better than the movie.',
-                'author' => 'Wells, H. G.'
+                'author' => 'Wells, H. G.',
             ])
             ->seeInDatabase('books', [
                 'title' => 'The War of the Worlds'
             ]);
 
-        //Verify the data key in the response
         $body = json_decode($this->response->getContent(), true);
         $this->assertArrayHasKey('data', $body);
+
+        $data = $body['data'];
+        $this->assertArrayHasKey('created', $data);
+        $this->assertEquals(Carbon::now()->toIso8601String(), $data['created']);
+        $this->assertArrayHasKey('updated', $data);
+        $this->assertEquals(Carbon::now()->toIso8601String(), $data['updated']);
     }
 
     /** @test **/
